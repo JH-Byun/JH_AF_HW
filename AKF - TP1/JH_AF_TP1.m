@@ -175,16 +175,16 @@ x_ip{2} = [0 0 0 -1 0 0]';
 P_ip{2} = diag([0.1 0.1 0.1 0.1 0.5 0.5]);
 
 % (ADDED) estimated value storage
-X_KF_1 = zeros(4,200);
-X_KF_2 = zeros(6,200);
-X_MMAE = zeros(6,200);
-X_IMM = zeros(4,200);
+X_KF_1 = zeros(4,n+1);
+X_KF_2 = zeros(6,n+1);
+X_MMAE = zeros(6,n+1);
+X_IMM = zeros(6,n+1);
 
 % (ADDED) state covariance storage
-P_KF_1 = zeros(4,4,200);
-P_KF_2 = zeros(6,6,200);
-P_MMAE = zeros(6,6,200);
-P_IMM = zeros(6,6,200);
+P_KF_1 = zeros(4,4,n+1);
+P_KF_2 = zeros(6,6,n+1);
+P_MMAE = zeros(6,6,n+1);
+P_IMM = zeros(6,6,n+1);
 
 % (ADDED) initial estimation
 X_KF_1(:,1) = M1;
@@ -204,45 +204,53 @@ for i = 1:size(Y,2)
 
     % MMAE
 
-
     % IMM
-    
+    [x_ip, P_ip, c_j, X_IMM(:,i), P_IMM(:,:,i)] = imm_predict(x_ip, P_ip, mu_ip, p_ij, ind, dims, A, Q); % (ADDED) IMM prediction
+    [x_ip, P_ip, mu_ip, X_IMM(:,i+1), P_IMM(:,:,i+1)] = imm_update(x_ip, P_ip, c_j, ind, dims, Y(:,i), H, R); % (ADDED) IMM update
 end
 
 
 % Calculate the MSEs
 
 % (ADDED) Plot results
-tspan = dt*(1:200); % (ADDED) time span
+tspan = dt*(1:n); % (ADDED) time span
 figure;
 subplot(4,1,1)
-plot(tspan, X_r(1,:) - X_KF_1(1,1:200), 'LineWidth', 2)
+plot(tspan, X_r(1,:) - X_KF_1(1,1:n), 'LineWidth', 2)
 hold on
-plot(tspan, X_r(1,:) - X_KF_2(1,1:200), 'LineWidth', 2)
+plot(tspan, X_r(1,:) - X_KF_2(1,1:n), 'LineWidth', 2)
+hold on
+plot(tspan, X_r(1,:) - X_IMM(1,1:n), 'LineWidth', 2)
 ylabel('error [m]');
 grid on
 legend('KF1','KF2','MMAE','IMM');
 title('Position x error');
 subplot(4,1,2)
-plot(tspan, X_r(2,:) - X_KF_1(2,1:200), 'LineWidth', 2)
+plot(tspan, X_r(2,:) - X_KF_1(2,1:n), 'LineWidth', 2)
 hold on
-plot(tspan, X_r(2,:) - X_KF_2(2,1:200), 'LineWidth', 2)
+plot(tspan, X_r(2,:) - X_KF_2(2,1:n), 'LineWidth', 2)
+hold on
+plot(tspan, X_r(2,:) - X_IMM(2,1:n), 'LineWidth', 2)
 grid on
 ylabel('error [m]');
 legend('KF1','KF2','MMAE','IMM');
 title('Position y error');
 subplot(4,1,3)
-plot(tspan, X_r(3,:) - X_KF_1(3,1:200), 'LineWidth', 2)
+plot(tspan, X_r(3,:) - X_KF_1(3,1:n), 'LineWidth', 2)
 hold on
-plot(tspan, X_r(3,:) - X_KF_2(3,1:200), 'LineWidth', 2)
+plot(tspan, X_r(3,:) - X_KF_2(3,1:n), 'LineWidth', 2)
+hold on
+plot(tspan, X_r(3,:) - X_IMM(3,1:n), 'LineWidth', 2)
 grid on
 ylabel('error [m/2]');
 legend('KF1','KF2','MMAE','IMM');
 title('Velocity x error');
 subplot(4,1,4)
-plot(tspan, X_r(4,:) - X_KF_1(4,1:200), 'LineWidth', 2)
+plot(tspan, X_r(4,:) - X_KF_1(4,1:n), 'LineWidth', 2)
 hold on
-plot(tspan, X_r(4,:) - X_KF_2(4,1:200), 'LineWidth', 2)
+plot(tspan, X_r(4,:) - X_KF_2(4,1:n), 'LineWidth', 2)
+hold on
+plot(tspan, X_r(4,:) - X_IMM(4,1:n), 'LineWidth', 2)
 grid on
 ylabel('error [m/2]');
 xlabel('time [sec]');
