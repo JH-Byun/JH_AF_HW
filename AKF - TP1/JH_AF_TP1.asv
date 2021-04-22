@@ -225,7 +225,7 @@ for i = 1:size(Y,2)-1
     MMMMAE_i{1,i+1} = MM_temp(:,1); MMMMAE_i{2,i+1} = MM_temp(:,2);
     PPMMAE_i{1,i+1} = PP_temp(:,:,1); PPMMAE_i{2,i+1} = PP_temp(:,:,2);
     
-    pdf_i(1) = gausspdf(Y(:,i),H{1}*MMMMAE_i{1,i+1})*pdf_i(1);
+    pdf_i(1) = gausspdf(H{1}*MMMMAE_i{1,i+1})*pdf_i(1);
     MUMMAE(1,i+1) = /(gausspdf()*pdf_i(1)*MUMMAE(1, i) + MUMMAE(2,i));
     
     % IMM
