@@ -102,22 +102,16 @@ X_r = zeros(dims,n);
 X_r(:,1) = [0 0 0 -1 0 0]';
 mstate = zeros(1,n);
 
-mu_ip = [0.1 0.9];
-mu_0j = mu_ip;
+% (MODIFIED) initial distribution
+mu_ip{1} = [0.1 0.9];
+mu_ip{2} = [0.3 0.7];
+mu_ip{3} = [0.5 0.5];
+mu_ip{4} = [0.7 0.3];
+mu_ip{5} = [0.9 0.1];
 
 % case 1 : ideal
-p_ij{1} = [0.98 0.02;
+p_ij = [0.98 0.02;
         0.02 0.98];
-
-% (ADDED) case 2 ~ 5    
-p_ij{2} = [0.9 0.1;...
-    0.1 0.9];
-p_ij{3} = [0.8 0.2;...
-    0.2 0.8];
-p_ij{4} = [0.75 0.25;...
-    0.25 0.75];
-p_ij{5} = [0.7 0.3;...
-    0.3 0.7];
 
 % Forced mode transitions 
 mstate(1:50) = 2;
@@ -181,13 +175,13 @@ for k = 1:5
     MM_i{2,1} = x_ip{2};
     PP_i{1,1} = P_ip{1};
     PP_i{2,1} = P_ip{2};
-    c_j = mu_0j.';
+    c_j = mu_ip{k}.';
     for i = 1:size(Y,2)
         % case k        
         if i ~= 1
             MM_temp{1} = MM_i{1,i-1};  MM_temp{2} = MM_i{2,i-1};
             PP_temp{1} = PP_i{1,i-1}; PP_temp{2} = PP_i{2,i-1};
-            [MM_temp, PP_temp, c_j, MM{k,i}, PP{k,i}] = imm_predict(MM_temp, PP_temp, MU{k,i-1}, p_ij{k}, ind, dims, A, Q); % (ADDED) IMM prediction
+            [MM_temp, PP_temp, c_j, MM{k,i}, PP{k,i}] = imm_predict(MM_temp, PP_temp, MU{k,i-1}, p_ij, ind, dims, A, Q); % (ADDED) IMM prediction
             MM_i{1,i} = MM_temp{1}; MM_i{2,i} = MM_temp{2};
             PP_i{1,i} = PP_temp{1}; PP_i{2,i} = PP_temp{2};
         end

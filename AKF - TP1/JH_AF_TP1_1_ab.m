@@ -102,7 +102,7 @@ X_r = zeros(dims,n);
 X_r(:,1) = [0 0 0 -1 0 0]';
 mstate = zeros(1,n);
 
-mu_ip = [0.9 0.1];
+mu_ip = [0.1 0.9];
 mu_0j = mu_ip;
 
 % case 1 : ideal
@@ -198,7 +198,7 @@ PPMMAE_i{1,1} = P_ip{1};
 PPMMAE_i{2,1} = P_ip{2};
 pdf(1,1) = gauss_pdf(Y(:,1), H{1}*x_ip{1}, H{1}*P_ip{1}*H{1}.'+R{1});
 pdf(2,1) = gauss_pdf(Y(:,1), H{2}*x_ip{2}, H{2}*P_ip{2}*H{2}.'+R{2});
-MUMMAE = mu_ip.';
+MUMMAE(:,i) = mu_ip.';
 
 % (ADDED) IMM initialization
 MM_i{1,1} = x_ip{1};

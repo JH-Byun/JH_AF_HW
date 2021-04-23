@@ -110,11 +110,11 @@ p_ij = [0.98 0.02;
         0.02 0.98];
 
 % (MODIFIED) Forced mode transitions 
-mstate(1:50) = 2;
+mstate(1:50) = 1;
 mstate(51:70) = 1;
 mstate(71:120) = 2;
-mstate(121:150) = 1;
-mstate(151:200) = 2;
+mstate(121:150) = 2;
+mstate(151:200) = 1;
 
 % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! %
 % random seed - do not change      %
@@ -216,7 +216,7 @@ for i = 1:size(Y,2)
    % (ADDED) MMAE (modified)
     if i ~= 1
         % (ADDED) periodically reinitialization
-        if rem(i, 20) == 1
+        if rem(i, 30) == 1
             [MMMMAE2_i{1,i}, PPMMAE2_i{1,i}] = kf_predict(MMMMAE2(1:4,i-1), PPMMAE2_i{1,i-1}, A{1}, Q{1}); % KF_1 prediction
             [MMMMAE2_i{2,i}, PPMMAE2_i{2,i}] = kf_predict(MMMMAE2(:,i-1), PPMMAE2_i{2,i-1}, A{2}, Q{2}); % KF_2 prediction
             pdf2(1,i) = gauss_pdf(Y(:,i),H{1}*MMMMAE2_i{1,i},H{1}*PPMMAE2_i{1,i}*H{1}.'+R{1});

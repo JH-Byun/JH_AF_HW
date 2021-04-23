@@ -102,7 +102,7 @@ X_r = zeros(dims,n);
 X_r(:,1) = [0 0 0 -1 0 0]';
 mstate = zeros(1,n);
 
-mu_ip = [0.9 0.1];
+mu_ip = [0.1 0.9];
 mu_0j = mu_ip;
 
 % case 1 : ideal
