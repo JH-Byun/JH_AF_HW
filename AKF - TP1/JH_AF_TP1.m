@@ -151,11 +151,12 @@ PP2 = zeros(size(A{2},1), size(A{2},1), size(Y,2));
 % (ADDED) Overall estimates of MMAE filter
 MMMMAE = zeros(size(m,1), size(Y,2));
 PPMMAE = zeros(size(m,1), size(m,1), size(Y,2));
-% (ADDED) Model-conditioned estimates of MMAE
+% (ADDED) Model-conditioned predictions of MMAE
 MMMMAE_i = cell(2,n);
 PPMMAE_i = cell(2,n);
 
-% (ADDED) Model probabilities 
+% (ADDED) Model probabilities
+pdf = zeros(2,size(Y,2));
 MUMMAE = zeros(2,size(Y,2));
 
 % Overall estimates of IMM filter
@@ -184,59 +185,78 @@ P2 = diag([0.1 0.1 0.1 0.1 0.5 0.5]);
 MM2(:,1) = M2;
 PP2(:,:,1) = P2;
 
+% (MODIFIED) IMM & MMAE
+x_ip{1} = [0 0 0 -1]';
+P_ip{1} = diag([0.1^2 0.1^2 0.1^2 0.1^2]);
+x_ip{2} = [0 0 0 -1 0 0]';
+P_ip{2} = diag([0.1^2 0.1^2 0.1^2 0.1^2 0.5^2 0.5^2]);
+
 % (ADDED) MMAE initialization
 MMMMAE_i{1,1} = x_ip{1};
 MMMMAE_i{2,1} = x_ip{2};
 PPMMAE_i{1,1} = P_ip{1};
 PPMMAE_i{2,1} = P_ip{2};
+pdf(1,1) = gauss_pdf(Y(:,1), H{1}*x_ip{1}, H{1}*P_ip{1}*H{1}.'+R{1});
+pdf(2,1) = gauss_pdf(Y(:,1), H{2}*x_ip{2}, H{2}*P_ip{2}*H{2}.'+R{2});
+MUMMAE = mu_ip.';
 
-% IMM
-x_ip{1} = [0 0 0 -1]';
-P_ip{1} = diag([0.1^2 0.1^2 0.1^2 0.1^2]);
-x_ip{2} = [0 0 0 -1 0 0]';
-P_ip{2} = diag([0.1^2 0.1^2 0.1^2 0.1^2 0.5^2 0.5^2]);
-% (ADDED) initialization
+% (ADDED) IMM initialization
 MM_i{1,1} = x_ip{1};
 MM_i{2,1} = x_ip{2};
 PP_i{1,1} = P_ip{1};
 PP_i{2,1} = P_ip{2};
 MU(:,1) = mu_ip.';
+c_j = mu_0j.';
 
 % Filtering steps.
-for i = 1:size(Y,2)-1
+for i = 1:size(Y,2)
     % KF with model 1
-    [MM1(:,i), PP1(:,:,i)] = kf_predict(MM1(:,i), PP1(:,:,i), A{1}, Q{1}); % (ADDED) KF_1 prediction
-    [MM1(:,i+1), PP1(:,:,i+1)] = kf_update(MM1(:,i), PP1(:,:,i), Y(:,i), H{1}, R{1}); % (ADDED) KF_1 update
+    if i ~= 1
+        [MM1(:,i), PP1(:,:,i)] = kf_predict(MM1(:,i-1), PP1(:,:,i-1), A{1}, Q{1}); % (ADDED) KF_1 prediction
+    end
+    [MM1(:,i), PP1(:,:,i)] = kf_update(MM1(:,i), PP1(:,:,i), Y(:,i), H{1}, R{1}); % (ADDED) KF_1 update
     
     % KF with model 2
-    [MM2(:,i), PP2(:,:,i)] = kf_predict(MM2(:,i), PP2(:,:,i), A{2}, Q{2}); % (ADDED) KF_2 prediction
-    [MM2(:,i+1), PP2(:,:,i+1)] = kf_update(MM2(:,i), PP2(:,:,i), Y(:,i), H{2}, R{2}); % (ADDED) KF_2 update
+    if i ~= 1
+        [MM2(:,i), PP2(:,:,i)] = kf_predict(MM2(:,i-1), PP2(:,:,i-1), A{2}, Q{2}); % (ADDED) KF_2 prediction
+    end
+    [MM2(:,i), PP2(:,:,i)] = kf_update(MM2(:,i), PP2(:,:,i), Y(:,i), H{2}, R{2}); % (ADDED) KF_2 update
 
     % (ADDED) MMAE
-    if i == 1
-        pdf_z0 = gauss_pdf(Y(:,i), zero(size(Y,1),1), H{2}*P*H{2}.'+R{2}); % R{1} = R{2}
+    if i ~= 1
+        [MMMMAE_i{1,i}, PPMMAE_i{1,i}] = kf_predict(MMMMAE_i{1,i-1}, PPMMAE_i{1,i-1}, A{1}, Q{1}); % KF_1 prediction
+        [MMMMAE_i{2,i}, PPMMAE_i{2,i}] = kf_predict(MMMMAE_i{2,i-1}, PPMMAE_i{2,i-1}, A{2}, Q{2}); % KF_2 prediction
+        
+        pdf(1,i) = gauss_pdf(Y(:,i),H{1}*MMMMAE_i{1,i},H{1}*PPMMAE_i{1,i}*H{1}.'+R{1})*pdf(1,i-1); % p(Z_i*|alpha_1)
+        pdf(2,i) = gauss_pdf(Y(:,i),H{2}*MMMMAE_i{2,i},H{2}*PPMMAE_i{2,i}*H{2}.'+R{2})*pdf(2,i-1); % p(Z_i*|alpha_2)
+        
+        % probabilities
+        MUMMAE(1,i) = pdf(1,i)*MUMMAE(1,i-1)/(pdf(1,i)*MUMMAE(1,i-1)+pdf(2,i)*MUMMAE(2,i-1));
+        MUMMAE(2,i) = pdf(2,i)*MUMMAE(2,i-1)/(pdf(1,i)*MUMMAE(1,i-1)+pdf(2,i)*MUMMAE(2,i-1));  
     end
-    MM_temp(:,1) = MMMMAE_i{1,i};  MM_temp(:,2) = MMMMAE_i{2,i};
-    PP_temp(:,:,1) = PPMMAE_i{1,i}; PP_temp(:,:,2) = PPMMAE_i{2,i};
-    [MM_temp(:,1), PP_temp(:,:,1)] = kf_predict(MM_temp(:,1), PP_temp(:,:,1), A{1}, Q{1}); % KF_1 prediction
-    [MM_temp(:,1), PP_temp(:,:,1)] = kf_update(MM_temp(:,1), PP_temp(:,:,1), Y(:,i),H{1}, R{1}); % KF_1 update
-    [MM_temp(:,2), PP_temp(:,:,2)] = kf_predict(MM_temp(:,2), PP_temp(:,:,2), A{2}, Q{2}); % KF_2 prediction
-    [MM_temp(:,2), PP_temp(:,:,2)] = kf_update(MM_temp(:,2), PP_temp(:,:,2), Y(:,i),H{2}, R{2}); % KF_2 update
-    MMMMAE_i{1,i+1} = MM_temp(:,1); MMMMAE_i{2,i+1} = MM_temp(:,2);
-    PPMMAE_i{1,i+1} = PP_temp(:,:,1); PPMMAE_i{2,i+1} = PP_temp(:,:,2);
+
+    % (ADDED) KF update
+    [MMMMAE_i{1,i}, PPMMAE_i{1,i}] = kf_update(MMMMAE_i{1,i}, PPMMAE_i{1,i}, Y(:,i), H{1}, R{1});
+    [MMMMAE_i{2,i}, PPMMAE_i{2,i}] = kf_update(MMMMAE_i{2,i}, PPMMAE_i{2,i}, Y(:,i), H{2}, R{2});
     
-    pdf_i(1) = gausspdf(Y(:,i),H{1}*MMMMAE_i{1,i+1})*pdf_i(1);
-    MUMMAE(1,i+1) = /(gausspdf()*pdf_i(1)*MUMMAE(1, i) + MUMMAE(2,i));
+    % (ADDED) MMAE update
+    MMMMAE(1:4,i) = MUMMAE(1,i)*MMMMAE_i{1,i}(1:4,1) + MUMMAE(2,i)*MMMMAE_i{2,i}(1:4,1);
+    MMMMAE(5:6,i) = MMMMAE_i{2,i}(5:6,1);
     
     % IMM
-    MM_temp{1} = MM_i{1,i};  MM_temp{2} = MM_i{2,i};
-    PP_temp{1} = PP_i{1,i}; PP_temp{2} = PP_i{2,i};
-    [MM_temp, PP_temp, c_j, MM(:,i), PP(:,:,i)] = imm_predict(MM_temp, PP_temp, MU(:,i), p_ij, ind, dims, A, Q); % (ADDED) IMM prediction
-    [MM_temp, PP_temp, MU(:,i+1), MM(:,i+1), PP(:,:,i+1)] = imm_update(MM_temp, PP_temp, c_j, ind, dims, Y(:,i), H, R); % (ADDED) IMM update
-    MM_i{1,i+1} = MM_temp{1}; MM_i{2,i+1} = MM_temp{2};
-    PP_i{1,i+1} = PP_temp{1}; PP_i{2,i+1} = PP_temp{2};
+    if i ~= 1
+        MM_temp2{1} = MM_i{1,i-1};  MM_temp2{2} = MM_i{2,i-1};
+        PP_temp2{1} = PP_i{1,i-1}; PP_temp2{2} = PP_i{2,i-1};
+        [MM_temp2, PP_temp2, c_j, MM(:,i), PP(:,:,i)] = imm_predict(MM_temp2, PP_temp2, MU(:,i-1), p_ij, ind, dims, A, Q); % (ADDED) IMM prediction
+        MM_i{1,i} = MM_temp2{1}; MM_i{2,i} = MM_temp2{2};
+        PP_i{1,i} = PP_temp2{1}; PP_i{2,i} = PP_temp2{2};
+    end
+    MM_temp2{1} = MM_i{1,i};  MM_temp2{2} = MM_i{2,i};
+    PP_temp2{1} = PP_i{1,i}; PP_temp2{2} = PP_i{2,i};
+    [MM_temp2, PP_temp2, MU(:,i), MM(:,i), PP(:,:,i)] = imm_update(MM_temp2, PP_temp2, c_j, ind, dims, Y(:,i), H, R); % (ADDED) IMM update
+    MM_i{1,i} = MM_temp2{1}; MM_i{2,i} = MM_temp2{2};
+    PP_i{1,i} = PP_temp2{1}; PP_i{2,i} = PP_temp2{2};
 end
-
 
 %% Calculate the MSEs
 % (ADDED)
@@ -296,7 +316,7 @@ plot(tspan, X_r(3,:) - MM1(3,1:n), 'LineWidth', 2)
 hold on
 plot(tspan, X_r(3,:) - MM2(3,1:n), 'LineWidth', 2)
 hold on
-plot(tspan, X_r(2,:) - MMMMAE(3,1:n), 'LineWidth', 2)
+plot(tspan, X_r(3,:) - MMMMAE(3,1:n), 'LineWidth', 2)
 hold on
 plot(tspan, X_r(3,:) - MM(3,1:n), 'LineWidth', 2)
 grid on
@@ -308,7 +328,7 @@ plot(tspan, X_r(4,:) - MM1(4,1:n), 'LineWidth', 2)
 hold on
 plot(tspan, X_r(4,:) - MM2(4,1:n), 'LineWidth', 2)
 hold on
-plot(tspan, X_r(2,:) - MMMMAE(4,1:n), 'LineWidth', 2)
+plot(tspan, X_r(4,:) - MMMMAE(4,1:n), 'LineWidth', 2)
 hold on
 plot(tspan, X_r(4,:) - MM(4,1:n), 'LineWidth', 2)
 grid on
