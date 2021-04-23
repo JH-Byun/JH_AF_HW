@@ -106,8 +106,18 @@ mu_ip = [0.9 0.1];
 mu_0j = mu_ip;
 
 % case 1 : ideal
-p_ij = [0.98 0.02;
+p_ij{1} = [0.98 0.02;
         0.02 0.98];
+
+% (ADDED) case 2 ~ 5    
+p_ij{2} = [0.9 0.1;...
+    0.1 0.9];
+p_ij{3} = [0.8 0.2;...
+    0.2 0.8];
+p_ij{4} = [0.75 0.25;...
+    0.25 0.75];
+p_ij{3} = [0.75 0.25;...
+    0.25 0.75];
 
 % Forced mode transitions 
 mstate(1:50) = 2;
@@ -140,149 +150,88 @@ P = diag([0.1^2 0.1^2 0.1^2 0.1^2 0.5^2 0.5^2]);
 
 %%%% Space for the estimates %%%% 
 
-% KF using model 1 
-MM1 = zeros(size(A{1},1), size(Y,2));
-PP1 = zeros(size(A{1},1), size(A{1},1), size(Y,2));
-
-% KF using model 2
-MM2 = zeros(size(A{2},1), size(Y,2));
-PP2 = zeros(size(A{2},1), size(A{2},1), size(Y,2));
-
-% (ADDED) Overall estimates of MMAE filter
-MMMMAE = zeros(size(m,1), size(Y,2));
-PPMMAE = zeros(size(m,1), size(m,1), size(Y,2));
-% (ADDED) Model-conditioned predictions of MMAE
-MMMMAE_i = cell(2,n);
-PPMMAE_i = cell(2,n);
-
-% (ADDED) Model probabilities
-pdf = zeros(2,size(Y,2));
-MUMMAE = zeros(2,size(Y,2));
-
 % Overall estimates of IMM filter
-MM = zeros(size(m,1), size(Y,2));
-PP = zeros(size(m,1), size(m,1), size(Y,2));
+MM = cell(5,1);
+PP = cell(5,1);
+for k = 1:5
+    MM{k} = zeros(size(m,1), size(Y,2));
+    PP{k} = zeros(size(m,1), size(m,1), size(Y,2));
+end
+
 % Model-conditioned estimates of IMM
 MM_i = cell(2,n);
 PP_i = cell(2,n);
 
 % Model probabilities 
-MU = zeros(2,size(Y,2));
+MU = cell(5,1);
+for k = 1:5
+    MU{k} = zeros(2,size(Y,2));
+end
+
 
 %%%% Prior estimates %%%%
 
-% KF1
-M1 = [0 0 0 -1]';
-P1 = diag([0.1 0.1 0.1 0.1]);
-% (ADDED) initialization
-MM1(:,1) = M1;
-PP1(:,:,1) = P1;
-
-% KF2
-M2 = [0 0 0 -1 0 0]';
-P2 = diag([0.1 0.1 0.1 0.1 0.5 0.5]);
-% (ADDED) initialization
-MM2(:,1) = M2;
-PP2(:,:,1) = P2;
-
-% (MODIFIED) IMM & MMAE
+% IMM
 x_ip{1} = [0 0 0 -1]';
 P_ip{1} = diag([0.1^2 0.1^2 0.1^2 0.1^2]);
 x_ip{2} = [0 0 0 -1 0 0]';
 P_ip{2} = diag([0.1^2 0.1^2 0.1^2 0.1^2 0.5^2 0.5^2]);
-
-% (ADDED) MMAE initialization
-MMMMAE_i{1,1} = x_ip{1};
-MMMMAE_i{2,1} = x_ip{2};
-PPMMAE_i{1,1} = P_ip{1};
-PPMMAE_i{2,1} = P_ip{2};
-pdf(1,1) = gauss_pdf(Y(:,1), H{1}*x_ip{1}, H{1}*P_ip{1}*H{1}.'+R{1});
-pdf(2,1) = gauss_pdf(Y(:,1), H{2}*x_ip{2}, H{2}*P_ip{2}*H{2}.'+R{2});
-MUMMAE = mu_ip.';
 
 % (ADDED) IMM initialization
 MM_i{1,1} = x_ip{1};
 MM_i{2,1} = x_ip{2};
 PP_i{1,1} = P_ip{1};
 PP_i{2,1} = P_ip{2};
-MU(:,1) = mu_ip.';
+for k = 1:5
+    MU{k}(:,1) = mu_ip.';
+end
 c_j = mu_0j.';
 
 % Filtering steps.
 for i = 1:size(Y,2)
-    % KF with model 1
-    if i ~= 1
-        [MM1(:,i), PP1(:,:,i)] = kf_predict(MM1(:,i-1), PP1(:,:,i-1), A{1}, Q{1}); % (ADDED) KF_1 prediction
+    for k = 1:5
+        % case k
+        if i ~= 1
+            MM_temp{1} = MM_i{1,i-1};  MM_temp{2} = MM_i{2,i-1};
+            PP_temp{1} = PP_i{1,i-1}; PP_temp{2} = PP_i{2,i-1};
+            [MM_temp, PP_temp, c_j, MM{k}(:,i), PP{k}(:,:,i)] = imm_predict(MM_temp, PP_temp, MU(:,i-1), p_ij{k}, ind, dims, A, Q); % (ADDED) IMM prediction
+            MM_i{1,i} = MM_temp{1}; MM_i{2,i} = MM_temp{2};
+            PP_i{1,i} = PP_temp{1}; PP_i{2,i} = PP_temp{2};
+        end
+        MM_temp{1} = MM_i{1,i};  MM_temp{2} = MM_i{2,i};
+        PP_temp{1} = PP_i{1,i}; PP_temp{2} = PP_i{2,i};
+        [MM_temp, PP_temp, MU(:,i), MM{k}(:,i), PP{k}(:,:,i)] = imm_update(MM_temp, PP_temp, c_j, ind, dims, Y(:,i), H, R); % (ADDED) IMM update
+        MM_i{1,i} = MM_temp{1}; MM_i{2,i} = MM_temp{2};
+        PP_i{1,i} = PP_temp{1}; PP_i{2,i} = PP_temp{2};
     end
-    [MM1(:,i), PP1(:,:,i)] = kf_update(MM1(:,i), PP1(:,:,i), Y(:,i), H{1}, R{1}); % (ADDED) KF_1 update
     
-    % KF with model 2
-    if i ~= 1
-        [MM2(:,i), PP2(:,:,i)] = kf_predict(MM2(:,i-1), PP2(:,:,i-1), A{2}, Q{2}); % (ADDED) KF_2 prediction
-    end
-    [MM2(:,i), PP2(:,:,i)] = kf_update(MM2(:,i), PP2(:,:,i), Y(:,i), H{2}, R{2}); % (ADDED) KF_2 update
-
-    % (ADDED) MMAE
-    if i ~= 1
-        [MMMMAE_i{1,i}, PPMMAE_i{1,i}] = kf_predict(MMMMAE_i{1,i-1}, PPMMAE_i{1,i-1}, A{1}, Q{1}); % KF_1 prediction
-        [MMMMAE_i{2,i}, PPMMAE_i{2,i}] = kf_predict(MMMMAE_i{2,i-1}, PPMMAE_i{2,i-1}, A{2}, Q{2}); % KF_2 prediction
-        
-        pdf(1,i) = gauss_pdf(Y(:,i),H{1}*MMMMAE_i{1,i},H{1}*PPMMAE_i{1,i}*H{1}.'+R{1})*pdf(1,i-1); % p(Z_i*|alpha_1)
-        pdf(2,i) = gauss_pdf(Y(:,i),H{2}*MMMMAE_i{2,i},H{2}*PPMMAE_i{2,i}*H{2}.'+R{2})*pdf(2,i-1); % p(Z_i*|alpha_2)
-        
-        % probabilities
-        MUMMAE(1,i) = pdf(1,i)*MUMMAE(1,i-1)/(pdf(1,i)*MUMMAE(1,i-1)+pdf(2,i)*MUMMAE(2,i-1));
-        MUMMAE(2,i) = pdf(2,i)*MUMMAE(2,i-1)/(pdf(1,i)*MUMMAE(1,i-1)+pdf(2,i)*MUMMAE(2,i-1));  
-    end
-
-    % (ADDED) KF update
-    [MMMMAE_i{1,i}, PPMMAE_i{1,i}] = kf_update(MMMMAE_i{1,i}, PPMMAE_i{1,i}, Y(:,i), H{1}, R{1});
-    [MMMMAE_i{2,i}, PPMMAE_i{2,i}] = kf_update(MMMMAE_i{2,i}, PPMMAE_i{2,i}, Y(:,i), H{2}, R{2});
-    
-    % (ADDED) MMAE update
-    MMMMAE(1:4,i) = MUMMAE(1,i)*MMMMAE_i{1,i}(1:4,1) + MUMMAE(2,i)*MMMMAE_i{2,i}(1:4,1);
-    MMMMAE(5:6,i) = MMMMAE_i{2,i}(5:6,1);
-    
-    % IMM
-    if i ~= 1
-        MM_temp2{1} = MM_i{1,i-1};  MM_temp2{2} = MM_i{2,i-1};
-        PP_temp2{1} = PP_i{1,i-1}; PP_temp2{2} = PP_i{2,i-1};
-        [MM_temp2, PP_temp2, c_j, MM(:,i), PP(:,:,i)] = imm_predict(MM_temp2, PP_temp2, MU(:,i-1), p_ij, ind, dims, A, Q); % (ADDED) IMM prediction
-        MM_i{1,i} = MM_temp2{1}; MM_i{2,i} = MM_temp2{2};
-        PP_i{1,i} = PP_temp2{1}; PP_i{2,i} = PP_temp2{2};
-    end
-    MM_temp2{1} = MM_i{1,i};  MM_temp2{2} = MM_i{2,i};
-    PP_temp2{1} = PP_i{1,i}; PP_temp2{2} = PP_i{2,i};
-    [MM_temp2, PP_temp2, MU(:,i), MM(:,i), PP(:,:,i)] = imm_update(MM_temp2, PP_temp2, c_j, ind, dims, Y(:,i), H, R); % (ADDED) IMM update
-    MM_i{1,i} = MM_temp2{1}; MM_i{2,i} = MM_temp2{2};
-    PP_i{1,i} = PP_temp2{1}; PP_i{2,i} = PP_temp2{2};
 end
 
 %% Calculate the MSEs
 % (ADDED)
-sum1 = zeros(4,1);
-sum2 = zeros(4,1);
-sumMMAE = zeros(4,1);
-sum = zeros(4,1);
+sum{k} = cell(5,1);
+for k = 1:5
+    sum{k} = zeros(4,1);
+end
 % (ADDED) get summation of the squares of the estimation errors from each
 % time step
 for i = 1:size(Y,2)
     for j = 1:4
-        sum1(j,1) = sum1(j,1) + (X_r(j,i) - MM1(j,i))^2;
-        sum2(j,1) = sum2(j,1) + (X_r(j,i) - MM2(j,i))^2;
-        sumMMAE(j,1) = sumMMAE(j,1) + (X_r(j,i) - MMMMAE(j,i))^2;
-        sum(j,1) = sum(j,1) + (X_r(j,i) - MM(j,i))^2; 
+        for k = 1:5
+            sum{k}(j,1) = sum{k}(j,1) + (X_r(j,i) - MM{k}(j,i))^2;
+        end
     end
 end
 % (ADDED) calculate and print MSE (Mean-squared error)
-MSE1 = sum1/size(Y,2);
-fprintf('MSE(KF_1) - x: %f y: %f v_x: %f v_y: %f \n', MSE1(1), MSE1(2), MSE1(3), MSE1(4));
-MSE2 = sum2/size(Y,2);
-fprintf('MSE(KF_2) - x: %f y: %f v_x: %f v_y: %f \n', MSE2(1), MSE2(2), MSE2(3), MSE2(4));
-MSEMMAE = sumMMAE/size(Y,2);
-fprintf('MSE(MMAE) - x: %f y: %f v_x: %f v_y: %f \n', MSEMMAE(1), MSEMMAE(2), MSEMMAE(3), MSEMMAE(4));
-MSE = sum/size(Y,2);
-fprintf('MSE(IMM) - x: %f y: %f v_x: %f v_y: %f \n', MSE(1), MSE(2), MSE(3), MSE(4));
+MSE = cell(5,1);
+for k = 1:5
+    MSE{k} = sum{k}(j,1)/size(Y,2);
+end
+fprintf('MSE(IMM_case 1) - x: %f y: %f v_x: %f v_y: %f \n', MSE{1}(1), MSE{1}(2), MSE{1}(3), MSE{1}(4));
+fprintf('MSE(IMM_case 2) - x: %f y: %f v_x: %f v_y: %f \n', MSE{2}(1), MSE{2}(2), MSE{2}(3), MSE{2}(4));
+fprintf('MSE(IMM_case 3) - x: %f y: %f v_x: %f v_y: %f \n', MSE{3}(1), MSE{3}(2), MSE{3}(3), MSE{3}(4));
+fprintf('MSE(IMM_case 4) - x: %f y: %f v_x: %f v_y: %f \n', MSE{4}(1), MSE{4}(2), MSE{4}(3), MSE{4}(4));
+fprintf('MSE(IMM_case 5) - x: %f y: %f v_x: %f v_y: %f \n', MSE{5}(1), MSE{5}(2), MSE{5}(3), MSE{5}(4));
 
 %% (ADDED) Plot estimation result
 tspan = dt*(1:n); % (ADDED) time span
@@ -336,3 +285,23 @@ ylabel('error [m/2]');
 xlabel('time [sec]');
 legend('KF1','KF2','MMAE','IMM');
 title('Velocity y error');
+
+%% (ADDED) Model Probability
+figure;
+subplot(2,1,1)
+plot(tspan, MUMMAE(1,:), 'LineWidth', 2)
+hold on
+plot(tspan, MUMMAE(2,:), 'LineWidth', 2)
+grid on
+ylabel('\mu [-]');
+legend('model 1','model 2');
+title('MMAE model probability plot');
+subplot(2,1,2)
+plot(tspan, MU(1,:), 'LineWidth', 2)
+hold on
+plot(tspan, MU(2,:), 'LineWidth', 2)
+grid on
+ylabel('\mu [-]');
+xlabel('time [sec]');
+legend('model 1','model 2');
+title('IMM model probability plot');
