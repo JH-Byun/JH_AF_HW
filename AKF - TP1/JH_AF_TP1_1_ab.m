@@ -201,12 +201,12 @@ pdf(2,1) = gauss_pdf(Y(:,1), H{2}*x_ip{2}, H{2}*P_ip{2}*H{2}.'+R{2});
 MUMMAE(:,i) = mu_ip.';
 
 % (ADDED) IMM initialization
-MM_i{1,1} = x_ip{1};
-MM_i{2,1} = x_ip{2};
-PP_i{1,1} = P_ip{1};
-PP_i{2,1} = P_ip{2};
-MU(:,1) = mu_ip.';
-c_j = mu_0j.';
+MM_i{1,1} = x_ip{1}; % Before interaction: x_1(k|k) at k = 1
+MM_i{2,1} = x_ip{2}; % Before interaction: x_2(k|k) at k = 1
+PP_i{1,1} = P_ip{1}; % Before interaction: P_1(k|k) at k = 1
+PP_i{2,1} = P_ip{2}; % Before interaction: P_1(k|k) at k = 1
+MU(:,1) = mu_ip.'; % Model probability initialization: mu_ik at k = 1
+c_j = mu_0j.'; % predicted mode probability initialization: c_j = mu_jk
 
 % Filtering steps.
 for i = 1:size(Y,2)
@@ -248,12 +248,18 @@ for i = 1:size(Y,2)
         MM_temp2{1} = MM_i{1,i-1};  MM_temp2{2} = MM_i{2,i-1};
         PP_temp2{1} = PP_i{1,i-1}; PP_temp2{2} = PP_i{2,i-1};
         [MM_temp2, PP_temp2, c_j, MM(:,i), PP(:,:,i)] = imm_predict(MM_temp2, PP_temp2, MU(:,i-1), p_ij, ind, dims, A, Q); % (ADDED) IMM prediction
+        % mixing & kalman filter time propagartion
+        % at i = 1, there needs no prediction process
+        % mu_i1 is initialized outside...
         MM_i{1,i} = MM_temp2{1}; MM_i{2,i} = MM_temp2{2};
         PP_i{1,i} = PP_temp2{1}; PP_i{2,i} = PP_temp2{2};
     end
     MM_temp2{1} = MM_i{1,i};  MM_temp2{2} = MM_i{2,i};
     PP_temp2{1} = PP_i{1,i}; PP_temp2{2} = PP_i{2,i};
     [MM_temp2, PP_temp2, MU(:,i), MM(:,i), PP(:,:,i)] = imm_update(MM_temp2, PP_temp2, c_j, ind, dims, Y(:,i), H, R); % (ADDED) IMM update
+    % measurement update
+    % model probability update
+    % combination of estimation results
     MM_i{1,i} = MM_temp2{1}; MM_i{2,i} = MM_temp2{2};
     PP_i{1,i} = PP_temp2{1}; PP_i{2,i} = PP_temp2{2};
 end
