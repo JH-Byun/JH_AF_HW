@@ -255,7 +255,6 @@ hold on
 plot(tspan, err_arr{5}(2,:), 'LineWidth', 2)
 grid on
 ylabel('error [m]');
-legend('case 1','case 2','case 3','case 4','case 5');
 title('Position y error');
 subplot(4,1,3)
 plot(tspan, err_arr{1}(3,:), 'LineWidth', 2)
@@ -269,7 +268,6 @@ hold on
 plot(tspan, err_arr{5}(3,:), 'LineWidth', 2)
 grid on
 ylabel('error [m/2]');
-legend('case 1','case 2','case 3','case 4','case 5');
 title('Velocity x error');
 subplot(4,1,4)
 plot(tspan, err_arr{1}(4,:), 'LineWidth', 2)
@@ -284,7 +282,6 @@ plot(tspan, err_arr{5}(4,:), 'LineWidth', 2)
 grid on
 ylabel('error [m/2]');
 xlabel('time [sec]');
-legend('case 1','case 2','case 3','case 4','case 5');
 title('Velocity y error');
 
 %% (ADDED) Model Probability
@@ -315,7 +312,7 @@ plot(tspan, MU_arr{4}(2,:), 'LineWidth', 2)
 hold on
 plot(tspan, MU_arr{5}(2,:), 'LineWidth', 2)
 grid on
+xlabel('time [sec]');
 ylabel('\mu_2 [-]');
 ylim([0 1]);
-legend('case 1','case 2', 'case 3', 'case 4', 'case 5');
 title('model 2 probability plot');

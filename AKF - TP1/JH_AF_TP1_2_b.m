@@ -290,7 +290,6 @@ hold on
 plot(tspan, X_r(2,:) - MM(2,1:n), 'LineWidth', 2)
 grid on
 ylabel('error [m]');
-legend('MMAE','MMAE (modified)');
 title('Position y error');
 subplot(4,1,3)
 plot(tspan, X_r(3,:) - MMMMAE(3,1:n), 'LineWidth', 2)
@@ -298,7 +297,6 @@ hold on
 plot(tspan, X_r(3,:) - MM(3,1:n), 'LineWidth', 2)
 grid on
 ylabel('error [m/2]');
-legend('MMAE','MMAE (modified)');
 title('Velocity x error');
 subplot(4,1,4)
 plot(tspan, X_r(4,:) - MMMMAE(4,1:n), 'LineWidth', 2)
@@ -307,7 +305,6 @@ plot(tspan, X_r(4,:) - MM(4,1:n), 'LineWidth', 2)
 grid on
 ylabel('error [m/2]');
 xlabel('time [sec]');
-legend('MMAE','MMAE (modified)');
 title('Velocity y error');
 
 %% (ADDED) Model Probability
@@ -331,5 +328,4 @@ plot(tspan, MU(3,:), 'LineWidth', 2)
 grid on
 ylabel('\mu [-]');
 xlabel('time [sec]');
-legend('model 1','model 2','model 3');
 title('MMAE (modified) model probability plot');
