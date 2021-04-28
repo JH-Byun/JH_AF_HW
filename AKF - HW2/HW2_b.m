@@ -24,8 +24,7 @@ S = eye(4);
 L = eye(4);
 Sbar = L.'*S*L;
 t_f = 300;
-dt = 1;
-tspan = 0:dt:t_f;
+tspan = 0:T:t_f;
 theta = 0.0005;
 x = zeros(4, length(tspan));
 x(:,1) = x_0;
@@ -41,7 +40,7 @@ PP_KF(:,:,1) = P_0;
 
 % H_inf filter
 MM_H_inf = zeros(4, length(tspan));
-PPH_inf = zeros(4,4,length(tspan));
+PP_H_inf = zeros(4,4,length(tspan));
 MM_H_inf(:,1) = xhat_0;
 PP_H_inf(:,:,1) = P_0;
 
@@ -54,8 +53,9 @@ for i = 1:length(tspan)-1
     
     % kalman filter
         % update
-        PP_KF(:,:,i) = (eye(4) - PP_KF(:,:,i)*H.'*inv(H*PP_KF(:,:,i)*H.'+R)*H)*PP_KF(:,:,i);
-        MM_KF(:,i) = MM_KF(:,i) + PP_KF(:,:,i)*H.'*inv(R)*(y(:,i)-H*MM_KF(:,i));
+        K_KF = PP_KF(:,:,i)*H.'*inv(H*PP_KF(:,:,i)*H.'+R);
+        MM_KF(:,i) = MM_KF(:,i) + K_KF*(y(:,i)-H*MM_KF(:,i));
+        PP_KF(:,:,i) = (eye(4) - K_KF*H)*PP_KF(:,:,i);
     
         % prediction
         PP_KF(:,:,i+1) = F*PP_KF(:,:,i)*F.' + Q;
@@ -73,7 +73,7 @@ plot(tspan, x(1,:) - MM_KF(1,:), 'LineWidth', 2);
 hold on
 plot(tspan, x(1,:) - MM_H_inf(1,:), 'LineWidth', 2);
 grid on
-title('position x');
+title('north position');
 ylabel('x [m]');
 legend('KF','H_{inf}');
 subplot(2,2,2)
@@ -81,7 +81,7 @@ plot(tspan, x(2,:) - MM_KF(2,:), 'LineWidth', 2);
 hold on
 plot(tspan, x(2,:) - MM_H_inf(2,:), 'LineWidth', 2);
 grid on
-title('position y');
+title('east position');
 ylabel('y [m]');
 legend('KF','H_{inf}');
 subplot(2,2,3)
@@ -89,7 +89,7 @@ plot(tspan, x(3,:) - MM_KF(3,:), 'LineWidth', 2);
 hold on
 plot(tspan, x(3,:) - MM_H_inf(3,:), 'LineWidth', 2);
 grid on
-title('velocity x');
+title('north velocity');
 ylabel('v_x [m/s]');
 legend('KF','H_{inf}');
 subplot(2,2,4)
@@ -97,7 +97,7 @@ plot(tspan, x(4,:) - MM_KF(4,:), 'LineWidth', 2);
 hold on
 plot(tspan, x(4,:) - MM_H_inf(4,:), 'LineWidth', 2);
 grid on
-title('velocity y');
+title('east velocity');
 ylabel('v_y [m/s]');
 legend('KF','H_{inf}');
 

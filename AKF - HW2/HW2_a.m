@@ -24,8 +24,7 @@ S = eye(4);
 L = eye(4);
 Sbar = L.'*S*L;
 t_f = 300;
-dt = 1;
-tspan = 0:dt:t_f;
+tspan = 0:T:t_f;
 theta = 0.0005;
 x = zeros(4, length(tspan));
 x(:,1) = x_0;
@@ -41,7 +40,7 @@ PP_KF(:,:,1) = P_0;
 
 % H_inf filter
 MM_H_inf = zeros(4, length(tspan));
-PPH_inf = zeros(4,4,length(tspan));
+PP_H_inf = zeros(4,4,length(tspan));
 MM_H_inf(:,1) = xhat_0;
 PP_H_inf(:,:,1) = P_0;
 
@@ -54,8 +53,9 @@ for i = 1:length(tspan)-1
     
     % kalman filter
         % update
-        PP_KF(:,:,i) = (eye(4) - PP_KF(:,:,i)*H.'*inv(H*PP_KF(:,:,i)*H.'+R)*H)*PP_KF(:,:,i);
-        MM_KF(:,i) = MM_KF(:,i) + PP_KF(:,:,i)*H.'*inv(R)*(y(:,i)-H*MM_KF(:,i));
+        K_KF = PP_KF(:,:,i)*H.'*inv(H*PP_KF(:,:,i)*H.'+R);
+        MM_KF(:,i) = MM_KF(:,i) + K_KF*(y(:,i)-H*MM_KF(:,i));
+        PP_KF(:,:,i) = (eye(4) - K_KF*H)*PP_KF(:,:,i);
     
         % prediction
         PP_KF(:,:,i+1) = F*PP_KF(:,:,i)*F.' + Q;
