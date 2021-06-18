@@ -1,0 +1,29 @@
+%% Parameters
+MC = 100;
+
+%% simulation (ensemble generation)
+x_true = zeros(MC*2, simLen);
+z_true = zeros(MC, simLen);
+z = zeros(MC, simLen);
+for mcid = 1:MC
+    rng(mcid);
+    x_true(mcid*2-1:mcid*2,1) = x0 + sqrtP0*randn(2,1);
+    for i=2:simLen
+        x_true(mcid*2-1:mcid*2,i) = F*x_true(mcid*2-1:mcid*2,i-1) + Gamma*sqrtQ*randn(1,1);
+    end
+    z_true(mcid,:) = x_true(mcid*2-1,:);
+    z(measMC*(mcid-1)+1:measMC*mcid,:) = repmat(z_true(mcid,:),measMC,1) + sqrtR*randn(measMC,simLen);
+end
+
+%% filtering
+xtrue_array = reshape(repmat(reshape(x_true,2,[]),measMC,1),MC*measMC*2,[]);
+xhat = zeros(MC*2, simLen);
+
+% filter 1
+for mcid = 1:MC
+    xhat(2*mcid - 1:2*mcid,:) = filter1(x0, z(mcid,:), F, Gamma, sqrtP0, sqrtQ, sqrtR, simLen);
+end
+
+%% results
+xerr = xtrue_array - xhat;
+%... 후략
