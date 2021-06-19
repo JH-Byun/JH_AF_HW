@@ -45,164 +45,196 @@ for mcid = 1:MC
     xhat_UKF(2*mcid - 1:2*mcid,1) = x0;
     Phat = sqrtP0^2;
     for i = 2:simLen
-        [xhat_UKF(2*mcid - 1:2*mcid,i), Phat] = ukf_predict1(xhat_UKF(2*mcid - 1:2*mcid,i-1), Phat, F, Gamma*sqrtQ^2*Gamma.',[],[],[],1,[]);
-        [xhat_UKF(2*mcid - 1:2*mcid,i), Phat] = ukf_update1(xhat_UKF(2*mcid - 1:2*mcid,i), Phat, z(mcid, i), [1 0], sqrtR^2, [], [], [], 1, []);
+        [xhat_UKF(2*mcid - 1:2*mcid,i), Phat] = ukf_predict1(xhat_UKF(2*mcid - 1:2*mcid,i-1), Phat, F, Gamma*sqrtQ^2*Gamma.',[],0.5,2,1,[]);
+        [xhat_UKF(2*mcid - 1:2*mcid,i), Phat] = ukf_update1(xhat_UKF(2*mcid - 1:2*mcid,i), Phat, z(mcid, i), [1 0], sqrtR^2, [], 0.5, 2, 1, []);
         sgmhat_UKF(2*mcid - 1:2*mcid,i) = [sqrt(Phat(1,1));sqrt(Phat(2,2))];
     end
     time_spent_UKF(1,mcid) = toc;
 end
+fprintf('UKF done ... \n');
 
 % SIS 
 xhat_SIS = zeros(MC*2, simLen);
 sgmhat_SIS = zeros(MC*2, simLen);
 time_spent_SIS = zeros(1, MC);
+N = 1000; % particle numbers
 
 for mcid = 1:MC
     tic;
+    wgt = 1/N*ones(1,N);
+    xpart_prior = gauss_rnd(x0,sqrtP0^2,N);
+    xhat_SIS(2*mcid-1:2*mcid,1) = sum(xpart_prior.*repmat(wgt,2,1),2);
+    sgmhat_SIS(2*mcid-1:2*mcid,1) = [sqrtP0(1,1);sqrtP0(2,2)];
     for i = 2:simLen
-        xpart_prior(:,i) = F*xpart_prior(:,i) + Gamma*sqrtQ*randn(1,1);
-        ypart = H*xpart_prior(:,i) + sqrtR*randn(1,1);
-        vhat = z(mcid, i) - ypart;
-        q(i) = exp(-vhat^2/(2*sqrtR^2))/(sqrtR*sqrt(2*pi));
-        wgt(i) = % compute weights 
+        xpart_prior = F*xpart_prior + Gamma*gauss_rnd(0,sqrtQ^2,N);
+        ypart = H * xpart_prior;
+        for j = 1:N
+            p_yx(1,j) = gauss_pdf(z(mcid, i),ypart(1,j),sqrtR^2).';
+        end
+        wgt = p_yx.*wgt;
+        wgt = wgt/N;
+        wgt = wgt/sum(wgt);
+        
+        xhat_SIS(2*mcid-1:2*mcid,i) = sum(xpart_prior.*repmat(wgt,2,1),2);
+        P = (xpart_prior - repmat(xhat_SIS(2*mcid-1:2*mcid,i),1,N))*diag(wgt)*...
+            (xpart_prior - repmat(xhat_SIS(2*mcid-1:2*mcid,i),1,N)).';
+        sgmhat_SIS(2*mcid-1,i) = sqrt(P(1,1));
+        sgmhat_SIS(2*mcid,i) = sqrt(P(2,2));
     end
     time_spent_SIS(1,mcid) = toc;
 end
+fprintf('PF - SIS done ... \n');
+
+% SIR 
+xhat_SIR = zeros(MC*2, simLen);
+sgmhat_SIR = zeros(MC*2, simLen);
+time_spent_SIR = zeros(1, MC);
+N = 1000; % particle numbers
+
+for mcid = 1:MC
+    tic;
+    wgt = 1/N*ones(1,N);
+    xpart_prior = gauss_rnd(x0,sqrtP0^2,N);
+    xhat_SIR(2*mcid-1:2*mcid,1) = sum(xpart_prior.*repmat(wgt,2,1),2);
+    sgmhat_SIR(2*mcid-1:2*mcid,1) = [sqrtP0(1,1);sqrtP0(2,2)];
+    for i = 2:simLen
+        resam_id = resampleSystematic(wgt);
+        xpart_prior = xpart_prior(:,resam_id);
+        xpart_prior = F*xpart_prior + Gamma*gauss_rnd(0,sqrtQ^2,N);
+        
+        ypart = H * xpart_prior;
+        for j = 1:N
+            p_yx(1,j) = gauss_pdf(z(mcid, i),ypart(1,j),sqrtR^2).';
+        end
+        p_yx = p_yx/sum(p_yx);
+        wgt = p_yx/N;
+        wgt = wgt/sum(wgt);
+        
+        xhat_SIR(2*mcid-1:2*mcid,i) = sum(xpart_prior.*repmat(wgt,2,1),2);
+        P = (xpart_prior - repmat(xhat_SIR(2*mcid-1:2*mcid,i),1,N))*diag(wgt)*...
+            (xpart_prior - repmat(xhat_SIR(2*mcid-1:2*mcid,i),1,N)).';
+        sgmhat_SIR(2*mcid-1,i) = sqrt(P(1,1));
+        sgmhat_SIR(2*mcid,i) = sqrt(P(2,2));
+    end
+    time_spent_SIR(1,mcid) = toc;
+end
+fprintf('PF - SIR done ... \n');
 
 %% results
 % settings
+load KF.mat
 default_font_size = 12.5; % default font size
 default_line_width = 2; % default line width
-
-% KF
-xerr = xtrue_array - xhat;
-    % X(1): position
-    figure('DefaultAxesFontSize',default_font_size);
-    for mcid =  1:MC
-        hold on
-        plot(1:simLen,xerr(2*mcid - 1, :),'LineWidth',default_line_width)
+     
+% RMS error comparison
+    % RMS error
+    xerr_UKF = xtrue_array - xhat_UKF;
+    xerr_SIS = xtrue_array - xhat_SIS;
+    xerr_SIR = xtrue_array - xhat_SIR;     
+    for i = 1:simLen
+        RMS_UKF(:,i) = [sqrt(sum(xerr_UKF(1:2:end,i).^2)/MC);sqrt(sum(xerr_UKF(2:2:end,i).^2)/MC)];
+        RMS_SIS(:,i) = [sqrt(sum(xerr_SIS(1:2:end,i).^2)/MC);sqrt(sum(xerr_SIS(2:2:end,i).^2)/MC)];
+        RMS_SIR(:,i) = [sqrt(sum(xerr_SIR(1:2:end,i).^2)/MC);sqrt(sum(xerr_SIR(2:2:end,i).^2)/MC)];
     end
+    % RMSE comparison plot
+    figure('DefaultAxesFontSize',default_font_size);
+    subplot(2,1,1)
+    plot(1:simLen,RMS_KF(1,:),'LineWidth',default_line_width)
+    hold on
+    plot(1:simLen,RMS_UKF(1,:),'LineWidth',default_line_width)
+    hold on
+    plot(1:simLen,RMS_SIS(1,:),'LineWidth',default_line_width)
+    hold on
+    plot(1:simLen,RMS_SIR(1,:),'LineWidth',default_line_width)
     grid on
-    xlabel('time [sec]')
     ylabel('position [m]')
-    title('Position error')
-    % X(2): velocity
-    figure('DefaultAxesFontSize',default_font_size);
-    for mcid =  1:MC
-        hold on
-        plot(1:simLen,xerr(2*mcid, :),'LineWidth',default_line_width)
-    end
+    title('Position RMS error')
+    legend({'KF','UKF','PF - SIS','PF - SIR'},'Location','best')
+    subplot(2,1,2)
+    plot(1:simLen,RMS_KF(2,:),'LineWidth',default_line_width)
+    hold on
+    plot(1:simLen,RMS_UKF(2,:),'LineWidth',default_line_width)
+    hold on
+    plot(1:simLen,RMS_SIS(2,:),'LineWidth',default_line_width)
+    hold on
+    plot(1:simLen,RMS_SIR(2,:),'LineWidth',default_line_width)
     grid on
     xlabel('time [sec]')
     ylabel('velocity [m/s]')
-    title('Velocity error')
+    title('Velocity RMS error')
     
-    % RMS error
-    RMS = zeros(2,simLen);
-    for i = 1:simLen
-        S_sum = zeros(2,1);
-        for mcid = 1:MC
-            S_sum(1) = S_sum(1) + xerr(2*mcid - 1,i)^2;
-            S_sum(2) = S_sum(2) + xerr(2*mcid,i)^2;
-        end
-        RMS(1,i) = sqrt(S_sum(1)/MC);
-        RMS(2,i) = sqrt(S_sum(2)/MC);
-    end
-        % RMS error plot
-        figure('DefaultAxesFontSize',default_font_size);
-        subplot(2,1,1)
-        plot(1:simLen,RMS(1,:),'LineWidth',default_line_width)
-        grid on
-        xlabel('time [sec]')
-        ylabel('position [m]')
-        ylim([0 5])
-        title('Position RMS error')
-        subplot(2,1,2)
-        plot(1:simLen,RMS(2,:),'LineWidth',default_line_width)
-        grid on
-        xlabel('time [sec]')
-        ylabel('velocity [m/2]')
-        ylim([0 5])
-        title('Velocity RMS error')
-        
-    % sqrtP diagonal term plot
-        % sgm_x: position standard deviation
-        figure('DefaultAxesFontSize',default_font_size);
-        subplot(2,1,1)
-        for mcid =  1:MC
-            hold on
-            plot(1:simLen,sgmhat(2*mcid - 1, :),'LineWidth',default_line_width)
-        end
-        grid on
-        xlabel('time [sec]')
-        ylabel('$\sigma_x$ [m]','Interpreter','Latex')
-        ylim([0 5])
-        title('Position standard deviation')
-        % sgm_v: velocity standard deviation
-        subplot(2,1,2)
-        for mcid =  1:MC
-            hold on
-            plot(1:simLen,sgmhat(2*mcid, :),'LineWidth',default_line_width)
-        end
-        grid on
-        xlabel('time [sec]')
-        ylabel('$\sigma_v$ [m/s]','Interpreter','Latex')
-        ylim([0 5])
-        title('Velocity standard deviation')
-       
- % UKF
-xerr_UKF = xtrue_array - xhat_UKF;
-    % RMS error
-    RMS_UKF = zeros(2,simLen);
-    for i = 1:simLen
-        S_sum = zeros(2,1);
-        for mcid = 1:MC
-            S_sum(1) = S_sum(1) + xerr_UKF(2*mcid - 1,i)^2;
-            S_sum(2) = S_sum(2) + xerr_UKF(2*mcid,i)^2;
-        end
-        RMS_UKF(1,i) = sqrt(S_sum(1)/MC);
-        RMS_UKF(2,i) = sqrt(S_sum(2)/MC);
-    end
-        % RMS error plot
-        figure('DefaultAxesFontSize',default_font_size);
-        subplot(2,1,1)
-        plot(1:simLen,RMS_UKF(1,:),'LineWidth',default_line_width)
-        grid on
-        xlabel('time [sec]')
-        ylabel('position [m]')
-        ylim([0 5])
-        title('Position RMS error (UKF)')
-        subplot(2,1,2)
-        plot(1:simLen,RMS_UKF(2,:),'LineWidth',default_line_width)
-        grid on
-        xlabel('time [sec]')
-        ylabel('velocity [m/2]')
-        ylim([0 5])
-        title('Velocity RMS error (UKF)')
-        
-    % sqrtP diagonal term plot
-        % sgm_x: position standard deviation
-        figure('DefaultAxesFontSize',default_font_size);
-        subplot(2,1,1)
-        for mcid =  1:MC
-            hold on
-            plot(1:simLen,sgmhat_UKF(2*mcid - 1, :),'LineWidth',default_line_width)
-        end
-        grid on
-        xlabel('time [sec]')
-        ylabel('$\sigma_x$ [m]','Interpreter','Latex')
-        ylim([0 5])
-        title('Position standard deviation (UKF)')
-        % sgm_v: velocity standard deviation
-        subplot(2,1,2)
-        for mcid =  1:MC
-            hold on
-            plot(1:simLen,sgmhat_UKF(2*mcid, :),'LineWidth',default_line_width)
-        end
-        grid on
-        xlabel('time [sec]')
-        ylabel('$\sigma_v$ [m/s]','Interpreter','Latex')
-        ylim([0 5])
-        title('Velocity standard deviation (UKF)')
-  
-        
+% standard deviation error comparison
+    % KF
+    figure('DefaultAxesFontSize',default_font_size);
+    subplot(2,1,1)
+    plot(1:simLen,sgmhat_KF(1:2:end, :),'LineWidth',default_line_width)
+    grid on
+    ylabel('$\sigma_x$ [m]','Interpreter','Latex')
+    title('Position standard deviation (KF)')
+    subplot(2,1,2)
+    plot(1:simLen,sgmhat_KF(2:2:end, :),'LineWidth',default_line_width)
+    grid on
+    xlabel('time [sec]')
+    ylabel('$\sigma_v$ [m/s]','Interpreter','Latex')
+    ylim([0 5])
+    title('Velocity standard deviation (KF)')
+    
+    % UKF
+    figure('DefaultAxesFontSize',default_font_size);
+    subplot(2,1,1)
+    plot(1:simLen,sgmhat_UKF(1:2:end, :),'LineWidth',default_line_width)
+    grid on
+    ylabel('$\sigma_x$ [m]','Interpreter','Latex')
+    title('Position standard deviation (UKF)')
+    subplot(2,1,2)
+    plot(1:simLen,sgmhat_UKF(2:2:end, :),'LineWidth',default_line_width)
+    grid on
+    xlabel('time [sec]')
+    ylabel('$\sigma_v$ [m/s]','Interpreter','Latex')
+    ylim([0 5])
+    title('Velocity standard deviation (UKF)')
+    
+    % PF - SIS
+    figure('DefaultAxesFontSize',default_font_size);
+    subplot(2,1,1)
+    plot(1:simLen,sgmhat_SIS(1:2:end, :),'LineWidth',default_line_width)
+    grid on
+    ylabel('$\sigma_x$ [m]','Interpreter','Latex')
+    title('Position standard deviation (PF - SIS)')
+    subplot(2,1,2)
+    plot(1:simLen,sgmhat_SIS(2:2:end, :),'LineWidth',default_line_width)
+    grid on
+    xlabel('time [sec]')
+    ylabel('$\sigma_v$ [m/s]','Interpreter','Latex')
+    ylim([0 5])
+    title('Velocity standard deviation (PF - SIS)')
+    
+    % PF - SIR
+    figure('DefaultAxesFontSize',default_font_size);
+    subplot(2,1,1)
+    plot(1:simLen,sgmhat_SIR(1:2:end, :),'LineWidth',default_line_width)
+    grid on
+    ylabel('$\sigma_x$ [m]','Interpreter','Latex')
+    title('Position standard deviation (PF - SIR)')
+    subplot(2,1,2)
+    plot(1:simLen,sgmhat_SIR(2:2:end, :),'LineWidth',default_line_width)
+    grid on
+    xlabel('time [sec]')
+    ylabel('$\sigma_v$ [m/s]','Interpreter','Latex')
+    ylim([0 5])
+    title('Velocity standard deviation (PF - SIR)')
+    
+% computation time comparison
+    figure('DefaultAxesFontSize',default_font_size);
+    plot(1:MC,time_spent_KF(1, :),'LineWidth',default_line_width)
+    hold on
+    plot(1:MC,time_spent_UKF(1, :),'LineWidth',default_line_width)
+    hold on
+    plot(1:MC,time_spent_SIS(1, :),'LineWidth',default_line_width)
+    hold on
+    plot(1:MC,time_spent_SIR(1, :),'LineWidth',default_line_width)
+    grid on
+    xlabel('MC iteration number [-]')
+    ylabel('computation time [sec]')
+    legend({'KF','UKF','PF - SIS','PF - SIR'},'Location','best')
+    title('Computation time comparison')
